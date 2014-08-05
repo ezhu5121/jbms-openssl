@@ -1,0 +1,13 @@
+@PACKAGE_INIT@
+
+find_package(boost-endian REQUIRED)
+find_package(jbms-utility REQUIRED)
+find_package(jbms-array_view REQUIRED)
+find_package(OpenSSL REQUIRED)
+
+set_and_check(jbms-openssl_INCLUDE_DIRS
+  "@PACKAGE_jbms-openssl_INCLUDE_DIR@" 
+  ${OPENSSL_INCLUDE_DIRS}
+  ${boost-endian_INCLUDE_DIRS}
+  ${jbms-utility_INCLUDE_DIRS}
+  ${jbms-array_view_INCLUDE_DIRS})
