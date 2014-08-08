@@ -7,6 +7,7 @@
 #include "jbms/enable_if.hpp"
 #include "jbms/is_byte.hpp"
 #include "jbms/assign_endian.hpp"
+#include "jbms/division.hpp"
 #include <vector>
 #include <cctype>
 
@@ -250,6 +251,41 @@ public:
   }
 };
 
+/**
+ * Invokes wrapper.data on a uint8_t array of length num_bytes
+ *
+ * x is set to be the contents of that buffer, interpreted as order endianness
+ **/
+template <class Func, boost::endian::order order,
+          JBMS_ENABLE_IF_EXPR(std::declval<Func>()(std::declval<uint8_t *>()))>
+inline void fill(bignum &x, size_t num_bytes, endian_wrapper<Func,order> wrapper) {
+  x.set_zero();
+  size_t num_words = jbms::div_ceil(num_bytes, sizeof(BN_ULONG));
+
+  // ensure there is enough space
+  bn_wexpand(x.get(), num_words);
+  x.get()->top = num_words;
+
+  // set final word to 0 since it might not be completely overwritten by the function
+  if (num_words > 0)
+    x.get()->d[num_words-1] = 0;
+
+  // call function
+  auto buf = (uint8_t *)x.get()->d;
+  wrapper.data(buf);
+
+  // reverse bytes if big endian
+  if (order == boost::endian::order::big)
+    std::reverse(buf, buf + num_bytes);
+
+  // convert endian (no-op if order == little endian)
+  for (size_t i = 0; i < num_words; ++i) {
+    boost::endian::little_endian(x.get()->d[i]);
+  }
+
+  bn_fix_top(x.get());
+}
+
 
 /**
  *  Interoperability with assign_endian functionality.
@@ -278,19 +314,12 @@ inline void assign(endian_wrapper<Dest,boost::endian::order::little> wrapper,
   std::reverse(wrapper.data.begin(), wrapper.data.end());
 }
 
-template <class Source, JBMS_ENABLE_IF(is_byte_range<Source>)>
-void assign(bignum &x, endian_wrapper<Source,boost::endian::order::big> source) {
-  throw_last_error_if(BN_bin2bn((const unsigned char *)source.data.data(), (int)source.data.size(), x.get()) == nullptr);
+template <class Source, boost::endian::order order, JBMS_ENABLE_IF(is_byte_range<Source>)>
+void assign(bignum &x, endian_wrapper<Source, order> source) {
+  fill(x,
+       source.data.size(),
+       jbms::make_endian_wrapper<order>([&](uint8_t *buf) { memcpy(buf, source.data.data(), source.data.size()); }));
 }
-
-template <class Source, JBMS_ENABLE_IF(is_byte_range<Source>)>
-void assign(bignum &x, endian_wrapper<Source,boost::endian::order::little> source) {
-  // OpenSSL doesn't provide access to little endian conversion directly, so we use temporary array
-  std::vector<uint8_t> temp(source.data.size());
-  std::reverse_copy(source.data.begin(), source.data.end(), temp.begin());
-  throw_last_error_if(BN_bin2bn((const unsigned char *)temp.data(), (int)temp.size(), x.get()) == nullptr);
-}
-
 
 // r = a + b
 // r may alias a or b
@@ -354,8 +383,9 @@ inline void mod_exp(bignum &r, const BIGNUM *a, const BIGNUM *p, const BIGNUM *m
   throw_last_error_if(BN_mod_exp(r.get(), a, p, m, ctx) == 0);
 }
 
+/* r may alias a */
 inline void mod_inverse(bignum &r, const BIGNUM *a, const BIGNUM *n, BN_CTX *ctx) {
-  throw_last_error_if(BN_mod_inverse(r.get(), a, n, ctx));
+  throw_last_error_if(BN_mod_inverse(r.get(), a, n, ctx) == 0);
 }
 
 inline void gcd(bignum &r, const BIGNUM *a, const BIGNUM *b, BN_CTX *ctx) {
@@ -466,6 +496,7 @@ public:
   BN_MONT_CTX *get() { return &ctx_; }
   BN_MONT_CTX const *get() const { return &ctx_; }
   operator BN_MONT_CTX * () { return &ctx_; }
+  operator BN_MONT_CTX const * () const { return &ctx_; }
   BN_MONT_CTX *operator->() { return &ctx_; }
   BN_MONT_CTX const *operator->() const { return &ctx_; }
 
@@ -522,16 +553,18 @@ public:
 };
 static_assert(sizeof(bn_mont_ctx) == sizeof(BN_MONT_CTX), "");
 
-inline void from_montgomery(bignum &r, BIGNUM const *a, BN_MONT_CTX *mont, BN_CTX *ctx) {
-  throw_last_error_if(BN_from_montgomery(r.get(), a, mont, ctx) == 0);
+inline void from_montgomery(bignum &r, BIGNUM const *a, BN_MONT_CTX const *mont, BN_CTX *ctx) {
+  throw_last_error_if(BN_from_montgomery(r.get(), a, const_cast<BN_MONT_CTX *>(mont), ctx) == 0);
 }
 
-inline void to_montgomery(bignum &r, BIGNUM const *a, BN_MONT_CTX *mont, BN_CTX *ctx) {
-  throw_last_error_if(BN_to_montgomery(r.get(), a, mont, ctx) == 0);
+inline void to_montgomery(bignum &r, BIGNUM const *a, BN_MONT_CTX const *mont, BN_CTX *ctx) {
+  throw_last_error_if(BN_to_montgomery(r.get(), a, const_cast<BN_MONT_CTX *>(mont), ctx) == 0);
 }
 
-inline void mod_mul_montgomery(bignum &r, BIGNUM const *a, BIGNUM const *b, BN_MONT_CTX *mont, BN_CTX *ctx) {
-  throw_last_error_if(BN_mod_mul_montgomery(r.get(), a, b, mont, ctx) == 0);
+// r may alias a
+// a may alias b
+inline void mod_mul_montgomery(bignum &r, BIGNUM const *a, BIGNUM const *b, BN_MONT_CTX const *mont, BN_CTX *ctx) {
+  throw_last_error_if(BN_mod_mul_montgomery(r.get(), a, b, const_cast<BN_MONT_CTX *>(mont), ctx) == 0);
 }
 
 
