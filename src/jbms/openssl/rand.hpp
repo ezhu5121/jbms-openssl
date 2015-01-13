@@ -8,12 +8,18 @@
 namespace jbms {
 namespace openssl {
 
-inline void rand_bytes(array_view<uint8_t> buf) {
-  throw_last_error_if(RAND_bytes(buf.data(), buf.size()) != 1);
+inline void rand_bytes(array_view<void> buf) {
+  if (buf.size() > std::numeric_limits<int>::max())
+    throw std::invalid_argument("buf.size()=" + std::to_string(buf.size()) + " > " +
+                                std::to_string(std::numeric_limits<int>::max()));
+  throw_last_error_if(RAND_bytes(buf.data(), (int)buf.size()) != 1);
 }
 
-inline void rand_pseudo_bytes(array_view<uint8_t> buf) {
-  throw_last_error_if(RAND_pseudo_bytes(buf.data(), buf.size()) != 1);
+inline void rand_pseudo_bytes(array_view<void> buf) {
+  if (buf.size() > std::numeric_limits<int>::max())
+    throw std::invalid_argument("buf.size()=" + std::to_string(buf.size()) + " > " +
+                                std::to_string(std::numeric_limits<int>::max()));
+  throw_last_error_if(RAND_pseudo_bytes(buf.data(), (int)buf.size()) != 1);
 }
 
 
