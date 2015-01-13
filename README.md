@@ -1,3 +1,5 @@
+C++14 wrapper around OpenSSL
+
 Dependencies:
 =============
 
