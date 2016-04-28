@@ -21,29 +21,31 @@ namespace openssl {
  * WARNING: If this function compiled into a shared library that is unloaded during program execution, then the lock handlers may be removed when it is unloaded.  If OpenSSL is still being used in the program, this is unsafe.  Unfortunately there is no good way to work around this.
  **/
 inline void enable_locking() {
+  // This array will be initialized only if we install our locking functions.
+  static std::unique_ptr<std::mutex[]> mutexes;
 
   // This is a struct because we need a destructor.  However, it is a singleton.
   struct lock_manager {
-    // This array will be initialized only if we install our locking functions.
-    static std::unique_ptr<std::mutex[]> mutexes;
 
-    static void locking_function(int mode, int n, const char *file, int line) {
+    static void locking_function(int mode, int n, const char */*file*/, int /*line*/) {
       if (mode & CRYPTO_LOCK)
         mutexes[n].lock();
       else
         mutexes[n].unlock();
     }
 
-    static CRYPTO_dynlock_value *dyn_create_function(const char *file, int line) { return new CRYPTO_dynlock_value; }
-
-    static void dyn_lock_function(int mode, CRYPTO_dynlock_value *l, const char *file, int line) {
-      if (mode & CRYPTO_LOCK)
-        l->mutex.lock();
-      else
-        l->mutex.unlock();
+    static CRYPTO_dynlock_value *dyn_create_function(const char */*file*/, int /*line*/) {
+      return reinterpret_cast<CRYPTO_dynlock_value *>(new std::mutex);
     }
 
-    static void dyn_destroy_function(CRYPTO_dynlock_value *l, const char *file, int line) { delete l; }
+    static void dyn_lock_function(int mode, CRYPTO_dynlock_value *l, const char */*file*/, int /*line*/) {
+      if (mode & CRYPTO_LOCK)
+        reinterpret_cast<std::mutex *>(l)->lock();
+      else
+        reinterpret_cast<std::mutex *>(l)->unlock();
+    }
+
+    static void dyn_destroy_function(CRYPTO_dynlock_value *l, const char */*file*/, int /*line*/) { delete reinterpret_cast<std::mutex *>(l); }
 
     lock_manager() {
       if (!CRYPTO_get_locking_callback()) {
@@ -77,7 +79,7 @@ inline void enable_locking() {
 
   // C++11 guarantees thread-safe initialization of function static variables.
   // Additionally, we are guaranteed there is exactly one copy of this variable, even though this is defined in a header file.
-  static detail::lock_manager lock_manager;
+  static lock_manager lock_manager;
 }
 
 

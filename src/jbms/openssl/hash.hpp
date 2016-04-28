@@ -26,7 +26,7 @@ namespace openssl {
       return md;                                                                                                     \
     }                                                                                                                \
                                                                                                                      \
-    void digest(array_view<uint8_t> digest) {                                                                        \
+    void digest(array_view<void> digest) {                                                                           \
       if (digest.size() > digest_length)                                                                             \
         throw std::invalid_argument(#state_name "::digest: digest.size()=" + std::to_string(digest.size()) + " > " + \
                                     std::to_string(digest_length));                                                  \
@@ -39,7 +39,7 @@ namespace openssl {
     s(data);                                                                                                         \
     return s.digest();                                                                                               \
   }                                                                                                                  \
-  inline void func_name(array_view<uint8_t> digest_out, array_view<void const> data) {                               \
+  inline void func_name(array_view<void> digest_out, array_view<void const> data) {                                  \
     state_name s;                                                                                                    \
     s(data);                                                                                                         \
     s.digest(digest_out);                                                                                            \
