@@ -280,7 +280,7 @@ inline void fill(bignum &x, size_t num_bytes, endian_wrapper<Func,order> wrapper
 
   // convert endian (no-op if order == little endian)
   for (size_t i = 0; i < num_words; ++i) {
-    boost::endian::little_endian(x.get()->d[i]);
+    boost::endian::little_to_native_inplace(x.get()->d[i]);
   }
 
   bn_fix_top(x.get());
