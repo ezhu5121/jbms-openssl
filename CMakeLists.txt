@@ -1,22 +1,23 @@
 cmake_minimum_required(VERSION 2.8)
 project(jbms-openssl)
+find_package(PkgConfig REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+#add_definitions(-DOPENSSL_API_COMPAT=0x10000000L)
 
 #### Dependencies
-find_package(boost-endian REQUIRED)
 find_package(jbms-utility REQUIRED)
 find_package(jbms-array_view REQUIRED)
-find_package(OpenSSL REQUIRED)
-
+#find_package(OpenSSL 1.0 EXACT REQUIRED)
+set(ENV{PKG_CONFIG_PATH}  "/usr/local/ssl/lib/pkgconfig")
+pkg_check_modules(OPENSSL REQUIRED openssl)
 
 #### Includes
 set (${PROJECT_NAME}_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set (${PROJECT_NAME}_INCLUDE_DIRS
   "${${PROJECT_NAME}_INCLUDE_DIR}"
-  ${OPENSSL_INCLUDE_DIRS}
-  ${boost-endian_INCLUDE_DIRS}
+  ${OPENSSL_INCLUDEDIR}
   ${jbms-utility_INCLUDE_DIRS}
   ${jbms-array_view_INCLUDE_DIRS} )
 
